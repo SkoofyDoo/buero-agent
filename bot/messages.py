@@ -1,99 +1,59 @@
-"""Format Hermes email JSON for Telegram messages."""
+"""Format EmailData for Telegram messages."""
 
 from __future__ import annotations
 
-from typing import Any
+from bot.config import Appointment, EmailData
 
 
-def _text(value: Any) -> str:
-    """Return a stripped string, or empty if missing."""
-    if value is None:
-        return ""
-    return str(value).strip()
+def _format_sender(email: EmailData) -> str:
+    if email.from_name and email.from_email:
+        return f"{email.from_name} <{email.from_email}>"
+    return email.from_name or email.from_email
 
 
-def _has_content(value: Any) -> bool:
-    if value is None:
-        return False
-    if isinstance(value, (list, dict)):
-        return bool(value)
-    return bool(_text(value))
+def _format_appointment(appt: Appointment) -> str:
+    when = " ".join(part for part in (appt.date, appt.time) if part).strip()
+    if when and appt.title:
+        return f"• {when} — {appt.title}"
+    if when:
+        return f"• {when}"
+    if appt.title:
+        return f"• {appt.title}"
+    return ""
 
 
-def _format_sender(data: dict[str, Any]) -> str:
-    name = _text(data.get("from_name"))
-    email = _text(data.get("from") or data.get("sender"))
-    if name and email:
-        return f"{name} <{email}>"
-    return name or email
-
-
-def _format_list_items(items: list[Any]) -> list[str]:
-    lines: list[str] = []
-    for item in items:
-        if isinstance(item, dict):
-            label = (
-                _text(item.get("filename"))
-                or _text(item.get("name"))
-                or _text(item.get("term"))
-                or _text(item.get("title"))
-            )
-            extra = _text(item.get("description") or item.get("value"))
-            if label and extra:
-                lines.append(f"• {label}: {extra}")
-            elif label:
-                lines.append(f"• {label}")
-            elif extra:
-                lines.append(f"• {extra}")
-        else:
-            text = _text(item)
-            if text:
-                lines.append(f"• {text}")
-    return lines
-
-
-def format_email(data: dict[str, Any]) -> str:
-    """Turn Hermes JSON into a readable Telegram message (German labels)."""
+def format_email(email: EmailData) -> str:
+    """Turn EmailData into a readable Telegram message (German labels)."""
+    header: list[str] = []
     blocks: list[str] = []
 
-    sender = _format_sender(data)
+    sender = _format_sender(email)
     if sender:
-        blocks.append(f"Von: {sender}")
+        header.append(f"Von: {sender}")
 
-    subject = _text(data.get("subject") or data.get("betreff"))
-    if subject:
-        blocks.append(f"Betreff: {subject}")
+    if email.subject:
+        header.append(f"Betreff: {email.subject}")
 
-    summary = _text(data.get("summary") or data.get("zusammenfassung"))
-    if summary:
-        blocks.append(f"Zusammenfassung:\n{summary}")
+    if email.client.name:
+        header.append(f"Kunde: {email.client.name}")
 
-    # Anhänge
-    attachments = data.get("attachments") or data.get("anhaenge") or []
-    if _has_content(attachments):
-        if isinstance(attachments, list):
-            lines = _format_list_items(attachments)
-        else:
-            lines = [f"• {_text(attachments)}"]
-        if lines:
-            blocks.append("Anhänge:\n" + "\n".join(lines))
+    if header:
+        blocks.append("\n".join(header))
 
-    # Termine
-    appointments = data.get("appointments") or []
-    if appointments:
-        lines = []
-        for appt in appointments:
-            line = f"• {appt.get('date')} {appt.get('time')} — {appt.get('title')}"
-            lines.append(line)
-        blocks.append("Termine:\n" + "\n".join(lines))
+    if email.summary:
+        blocks.append(f"Zusammenfassung:\n{email.summary}")
 
-    # Typ
-    email_type = _text(data.get("type"))
-    if email_type:
-        blocks.append(f"Typ: {email_type}")
+    attachment_lines = [f"• {name}" for name in email.attachments if name]
+    if attachment_lines:
+        blocks.append("Anhänge:\n" + "\n".join(attachment_lines))
 
-    draft = _text(data.get("draft") or data.get("entwurf") or data.get("reply_draft"))
-    if draft:
-        blocks.append(f"Entwurf:\n{draft}")
+    appointment_lines = [
+        line for line in (_format_appointment(a) for a in email.appointments) if line
+    ]
+    if appointment_lines:
+        blocks.append("Termine:\n" + "\n".join(appointment_lines))
+
+    if email.draft:
+        blocks.append(f"Entwurf:\n{email.draft}")
 
     return "\n\n".join(blocks).strip()
