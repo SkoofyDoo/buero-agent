@@ -125,6 +125,47 @@ def get_new_items() -> list[QueueItem]:
     return items
 
 
+def get_item(item_id: int) -> QueueItem | None:
+    """Return one queue item by id, or None."""
+    with _connect() as conn:
+        row = conn.execute(
+            """
+            SELECT id, email_id, data, status, created_at
+            FROM queue
+            WHERE id = ?
+            """,
+            (item_id,),
+        ).fetchone()
+
+    if row is None:
+        return None
+
+    raw = json.loads(row["data"])
+    return QueueItem(
+        id=row["id"],
+        email_id=row["email_id"],
+        email=EmailData.from_dict(raw),
+        status=row["status"],
+        created_at=row["created_at"],
+        raw=raw,
+    )
+
+
+def email_id_exists(email_id: str) -> bool:
+    """True if this Hermes email_id was already stored at least once."""
+    with _connect() as conn:
+        row = conn.execute(
+            """
+            SELECT 1
+            FROM queue
+            WHERE email_id = ?
+            LIMIT 1
+            """,
+            (email_id,),
+        ).fetchone()
+    return row is not None
+
+
 def mark_as_processed(item_id: int) -> None:
     """Mark a queue item as processed."""
     with _connect() as conn:

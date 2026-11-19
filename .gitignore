@@ -1,6 +1,17 @@
-# Secrets 
+# Secrets
 .env
 
+# Dependencies
+.venv/
 
-# Dependecies
-.venv
+# Runtime / local state
+data/
+logs/
+output.json
+*.db
+*.lock
+
+# Python
+__pycache__/
+*.py[cod]
+.python-version

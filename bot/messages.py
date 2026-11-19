@@ -57,3 +57,11 @@ def format_email(email: EmailData) -> str:
         blocks.append(f"Entwurf:\n{email.draft}")
 
     return "\n\n".join(blocks).strip()
+
+
+def format_appointments(appointments: list[Appointment]) -> str:
+    """Format appointment list for the Termine button."""
+    lines = [line for line in (_format_appointment(a) for a in appointments) if line]
+    if not lines:
+        return "Keine Termine."
+    return "Termine:\n" + "\n".join(lines)
